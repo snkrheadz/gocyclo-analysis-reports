@@ -48,13 +48,12 @@ runs:
       shell: bash
       run: |
         set -x
+        set +e
 
         # Retrieve the option specified by the user from environment variables
         IGNORE_PATTERN="${{ inputs.ignore_pattern }}"
         OVER="${{ inputs.over }}"
         TOP="${{ inputs.top }}"
-        AVG="${{ inputs.avg }}"
-        AVG_SHORT="${{ inputs.avg_short }}"
 
         # Build the gocyclo command
         GOCYCLO_OPTS=""
@@ -67,7 +66,7 @@ runs:
         if [ -n "$TOP" ]; then
           GOCYCLO_OPTS="$GOCYCLO_OPTS -top $TOP"
         fi
-        GOCYCLO_CMD="gocyclo "$GOCYCLO_OPTS"
+        GOCYCLO_CMD="gocyclo ${GOCYCLO_OPTS}"
 
         # Prepare the output file
         touch raw_gocyclo_output.txt error_gocyclo_output.txt
@@ -76,17 +75,21 @@ runs:
         while IFS= read -r file; do
           if [[ -f "$file" ]]; then
             echo "Analyzing file: \"$file\""
-            cat "$file"  # Display the contents of the file
             gocyclo_output=$($GOCYCLO_CMD "$file" 2>&1)
             status=$?
 
-            if [ $status -eq 0 ]; then
+            if [ $status -eq 0 ] || { [ -n "$OVER" ] && [ $status -eq 1 ]; }; then
               echo "$gocyclo_output" >> raw_gocyclo_output.txt
+              status=0
             else
               echo "Error analyzing \"$file\": $gocyclo_output" >> error_gocyclo_output.txt
             fi
           fi
         done < changed_files.txt
+
+        # -over option shows functions with complexity > N only and
+        # returns exit code 1 if the set is non-empty
+        set -e
 
         # Process the analysis results
         if [[ -s raw_gocyclo_output.txt ]]; then
@@ -115,9 +118,8 @@ runs:
         fi
 
         # Create a report
+        gocyclo_report=""
         {
-          echo "report<<EOF"
-
           echo "## gocyclo Report"
           if [ -n "$over_40" ]; then
             echo "### 💣 Results with cyclomatic complexity over 40"
@@ -163,6 +165,8 @@ runs:
           else
             echo "✅ No errors found during gocyclo analysis."
           fi
+        } > gocyclo_report
 
-          echo "EOF"
-        } >> "$GITHUB_OUTPUT"
+        echo "gocyclo_report<<EOF" >> $GITHUB_ENV
+        cat gocyclo_report >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
