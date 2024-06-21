@@ -1,0 +1,56 @@
+name: Test gocyclo Analysis Reports
+
+on:
+  pull_request:
+    paths:
+      - "**/*.go"
+
+permissions:
+  pull-requests: write
+
+jobs:
+  test_gocyclo_analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4.0.1
+        with:
+          go-version-file: ./go.mod
+
+      - name: Run Go tests
+        run: |
+          cd tests
+          go test -v ./...
+
+      - name: Run gocyclo Analysis Reports
+        uses: ./
+        with:
+          ignore_pattern: '_test|_mock|mock_|.pb.go|proto'
+          over: '20'
+          top: '10'
+        id: gocyclo_analysis
+        continue-on-error: true
+
+      - name: Verify gocyclo report
+        run: |
+          # Example of a verification step
+          # You can add checks here to verify that the report has been generated correctly
+          if [ -f raw_gocyclo_output.txt ]; then
+            echo "raw_gocyclo_output.txt exists."
+            cat raw_gocyclo_output.txt
+          else
+            echo "raw_gocyclo_output.txt does not exist."
+            exit 1
+          fi
+
+      - name: Create a comment with the results
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          header: gocyclo Report
+          message: |
+            ${{ env.gocyclo_report }}
