@@ -1,6 +1,9 @@
 name: 'gocyclo Analysis Reports'
 description: 'Analyze Go files with gocyclo and report cyclomatic complexity.'
 author: 'snkrheadz <aki.d.sc@gmail.com>'
+branding:
+  icon: check
+  color: green
 inputs:
   ignore_pattern:
     description: 'Pattern to ignore files in gocyclo analysis'
